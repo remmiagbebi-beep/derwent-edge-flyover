@@ -66,47 +66,129 @@ body.fake-fullscreen #btnMobileMenu{ z-index:2; }
 
 @media (max-width: 767px){
 
-  :root{ --btn-size:42px; --gap:8px; --menu-offset:20px; }
-
-  .btn{ width:var(--btn-size); height:var(--btn-size); border:none; }
-  .btn svg{ width:20px; height:20px; }
-
-  body:not(.ios-fullscreen) #iconSpeed{ width:17px !important; height:17px !important; }
-  #iconResetView{ width:34px !important; height:34px !important; }
-
-  .speed-wrap{ width:var(--btn-size); height:var(--btn-size); }
-  .speed-panel{
-    height:36px; right:50px; width:185px; border:none; gap:9px; padding:0 7px;
+  :root{
+    --btn-size:42px;
+    --gap:8px;
+    --menu-offset:20px;
   }
-  .speed-slider::-webkit-slider-thumb{ width:15px; height:15px; }
 
-  .mobile-menu-btn{ position:absolute; bottom:var(--menu-offset); right:var(--menu-offset); z-index:20; }
-  #btnMobileMenu{ width:var(--btn-size); height:var(--btn-size); border:none; }
-  #btnMobileMenu svg{ width:20px; height:20px; }
+  /* all buttons 85% of desktop and no border */
+  .btn{
+    width:var(--btn-size);
+    height:var(--btn-size);
+    border:none;
+  }
+  .btn svg{
+    width:20px;
+    height:20px;
+  }
 
-  .ui-left, .ui-right{ top:auto; transform:none; gap:var(--gap); }
+  /* speed icon smaller on normal mobile (non fullscreen) */
+  body:not(.ios-fullscreen) #iconSpeed{
+    width:17px !important;
+    height:17px !important;
+  }
+
+  #iconResetView{
+    width:34px !important;
+    height:34px !important;
+  }
+
+  .speed-wrap{
+    width:var(--btn-size);
+    height:var(--btn-size);
+  }
+  .speed-panel{
+    height:36px;
+    right:50px;
+    width:185px;
+    border:none;
+    gap:9px;
+    padding:0 7px;
+  }
+  .speed-slider::-webkit-slider-thumb{
+    width:15px;
+    height:15px;
+  }
+
+  .mobile-menu-btn{
+    position:absolute;
+    bottom:var(--menu-offset);
+    right:var(--menu-offset);
+    z-index:20;
+  }
+
+  #btnMobileMenu{
+    width:var(--btn-size);
+    height:var(--btn-size);
+    border:none;
+  }
+  #btnMobileMenu svg{
+    width:20px;
+    height:20px;
+  }
+
+  .ui-left,
+  .ui-right{
+    top:auto;
+    transform:none;
+    gap:var(--gap);
+  }
 
   .ui-right{
     bottom:var(--menu-offset);
     right:calc(var(--menu-offset) + var(--btn-size) + var(--gap));
-    left:auto; flex-direction:row-reverse; align-items:flex-end;
+    left:auto;
+    flex-direction:row-reverse;
+    align-items:flex-end;
   }
 
   .ui-left{
     bottom:calc(var(--menu-offset) + var(--btn-size) + var(--gap));
-    right:var(--menu-offset); left:auto;
-    flex-direction:column; align-items:flex-end;
+    right:var(--menu-offset);
+    left:auto;
+    flex-direction:column;
+    align-items:flex-end;
   }
 
-  body.ios-fullscreen{ --btn-size:57px; }
-  body.ios-fullscreen .btn svg{ width:27px; height:27px; }
-  body.ios-fullscreen #iconSpeed{ width:27px !important; height:27px !important; }
-  body.ios-fullscreen #iconResetView{ width:45px !important; height:45px !important; }
-  body.ios-fullscreen .speed-panel{
-    height:50px; right:60px; width:255px; gap:14px; padding:0 12px;
+  /* iOS fullscreen tab */
+  body.ios-fullscreen{
+    --btn-size:57px;
   }
-  body.ios-fullscreen #btnFull{ display:none !important; }
+
+  body.ios-fullscreen .btn svg{
+    width:27px;
+    height:27px;
+  }
+
+  /* fullscreen speed icon back to small size */
+  body.ios-fullscreen #iconSpeed{
+    width:17px !important;
+    height:17px !important;
+  }
+
+  body.ios-fullscreen #iconResetView{
+    width:45px !important;
+    height:45px !important;
+  }
+  body.ios-fullscreen .speed-panel{
+    height:50px;
+    right:60px;
+    width:255px;
+    gap:14px;
+    padding:0 12px;
+  }
+  body.ios-fullscreen .speed-slider::-webkit-slider-thumb{
+    width:20px;
+    height:20px;
+  }
+
+  body.ios-fullscreen #btnFull{
+    display:none !important;
+  }
 }
+
+  
 </style>
 </head>
 
