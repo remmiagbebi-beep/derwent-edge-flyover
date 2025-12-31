@@ -72,6 +72,7 @@ body.fake-fullscreen #btnMobileMenu{ z-index:2; }
     --menu-offset:20px;
   }
 
+  /* all buttons 85% of desktop and no border */
   .btn{
     width:var(--btn-size);
     height:var(--btn-size);
@@ -82,6 +83,7 @@ body.fake-fullscreen #btnMobileMenu{ z-index:2; }
     height:20px;
   }
 
+  /* speed icon smaller on normal mobile (non fullscreen) */
   body:not(.ios-fullscreen) #iconSpeed{
     width:14px !important;
     height:14px !important;
@@ -149,6 +151,7 @@ body.fake-fullscreen #btnMobileMenu{ z-index:2; }
     align-items:flex-end;
   }
 
+  /* iOS fullscreen tab */
   body.ios-fullscreen{
     --btn-size:57px;
   }
@@ -158,6 +161,7 @@ body.fake-fullscreen #btnMobileMenu{ z-index:2; }
     height:27px;
   }
 
+  /* fullscreen speed icon back to small size */
   body.ios-fullscreen #iconSpeed{
     width:17px !important;
     height:17px !important;
@@ -322,21 +326,16 @@ mapboxgl.accessToken="pk.eyJ1IjoicmVtbWlhZ2JlYmkiLCJhIjoiY21odHRrYTQzMTk0bjJqcjE
 
 const GPX_URL="https://raw.githubusercontent.com/remmiagbebi-beep/derwent-edge-flyover/main/Derwent%20Edge.gpx";
 
-const CENTER_SMOOTH=0.06,
+const START_ZOOM=15.7,
+      CENTER_SMOOTH=0.06,
       MAX_TURN_RATE=4,
       STEP_KM=0.02;
 
-let currentZoom = 15.7;
-let targetZoom  = 15.7;
+let currentZoom = START_ZOOM;
+let targetZoom  = START_ZOOM;
 
-function forceWhite(svg){
-  svg.querySelectorAll("*").forEach(n=>{
-    if(n.getAttribute("fill")!=="none") n.setAttribute("fill","#fff");
-    if(n.hasAttribute("stroke")) n.setAttribute("stroke","#fff");
-  });
-}
+function forceWhite(svg){ svg.querySelectorAll("*").forEach(n=>{ if(n.getAttribute("fill")!=="none") n.setAttribute("fill","#fff"); if(n.hasAttribute("stroke")) n.setAttribute("stroke","#fff"); }); }
 
-/* FAST FORWARD ICON */
 (async()=>{
   try{
     const r=await fetch("https://raw.githubusercontent.com/remmiagbebi-beep/kinder-flyover/main/icons/fast-forward.svg");
@@ -353,7 +352,6 @@ function forceWhite(svg){
   }catch(e){}
 })();
 
-/* LAYERS ICON */
 (async()=>{
   try{
     const r=await fetch("https://raw.githubusercontent.com/remmiagbebi-beep/kinder-flyover/main/icons/layers.svg");
@@ -370,7 +368,17 @@ function forceWhite(svg){
   }catch(e){}
 })();
 
-let map=null;
+const map=new mapboxgl.Map({
+  container:"map",
+  style:"mapbox://styles/mapbox/satellite-streets-v12",
+  center:[-1.8743,53.3832],
+  zoom:START_ZOOM,
+  pitch:75,
+  bearing:-20,
+  antialias:true,
+  attributionControl:false
+});
+
 let route=null,routeLen=0,progress=0,playing=false,camMode="follow";
 let userOverride=false;
 let camCenter=null,camBearing=null,lastTs=0;
@@ -385,145 +393,6 @@ function parseGpx(text){
   const xml=new DOMParser().parseFromString(text,"application/xml");
   return toGeoJSON.gpx(xml).features.find(f=>f.geometry?.type==="LineString");
 }
-function norm360(deg){ return ((deg%360)+360)%360; }
-
-/* build route + initial map params BEFORE creating the map (fixes globe / wrong place on load) */
-(async function init(){
-  const text = await fetchText(GPX_URL);
-  const line = parseGpx(text);
-
-  let initCenter = [-1.8743,53.3832];
-  let initBearing = -20;
-
-  if(line){
-    const len=turf.length(line,{units:"kilometers"});
-    const pts=[];
-    for(let d=0;d<=len;d+=STEP_KM){
-      pts.push(turf.along(line,Math.min(d,len),{units:"kilometers"}).geometry.coordinates);
-    }
-    route={type:"Feature",geometry:{type:"LineString",coordinates:pts}};
-    routeLen=len;
-
-    const b=turf.bbox(route);
-    initCenter=[(b[0]+b[2])/2,(b[1]+b[3])/2];
-
-    const p0 = pts[0];
-    const p1 = pts[Math.min(3, pts.length-1)];
-    const fwd = turf.bearing(turf.point(p0), turf.point(p1));
-    initBearing = norm360(fwd + 180); /* issue 2: behind the walker looking forward */
-  }
-
-  map=new mapboxgl.Map({
-    container:"map",
-    style:"mapbox://styles/mapbox/satellite-streets-v12",
-    center:initCenter,
-    zoom:15.7,
-    pitch:75,
-    bearing:initBearing,
-    antialias:true,
-    attributionControl:false
-  });
-
-  map.on("load", async ()=>{
-    map.addSource("mapbox-dem",{type:"raster-dem",url:"mapbox://mapbox.mapbox-terrain-dem-v1"});
-    map.setTerrain({source:"mapbox-dem",exaggeration:1});
-    map.addLayer({id:"sky",type:"sky",
-      paint:{"sky-type":"atmosphere","sky-atmosphere-sun-intensity":12}
-    });
-
-    map.addSource("os-topo",{
-      type:"raster",
-      tiles:[
-        "https://a.tile.opentopomap.org/{z}/{x}/{y}.png",
-        "https://b.tile.opentopomap.org/{z}/{x}/{y}.png",
-        "https://c.tile.opentopomap.org/{z}/{x}/{y}.png"
-      ],
-      tileSize:256,
-      maxzoom:17
-    });
-    map.addLayer({
-      id:"os-topo-layer",
-      type:"raster",
-      source:"os-topo",
-      layout:{ visibility:"none" },
-      paint:{}
-    });
-
-    map.addSource("route",{type:"geojson",data:{type:"FeatureCollection",features:[]}});
-
-    map.addLayer({
-      id:"route-line",
-      type:"line",
-      source:"route",
-      paint:{
-        "line-color":"#EC2629",
-        "line-width":4,
-        "line-opacity":0.95
-      }
-    });
-
-    await addArrow();
-
-    map.addLayer({
-      id:"route-arrows",
-      type:"symbol",
-      source:"route",
-      layout:{
-        "symbol-placement":"line",
-        "symbol-spacing":110,
-        "icon-image":"arrow",
-        "icon-size":0.45,
-        "icon-allow-overlap":true,
-        "icon-ignore-placement":true,
-        "icon-rotation-alignment":"map",
-        "icon-keep-upright":false
-      },
-      paint:{"icon-opacity":0.9}
-    });
-
-    map.addSource("cursor",{type:"geojson",data:turf.point([0,0])});
-    map.addLayer({
-      id:"cursor-pt",
-      type:"circle",
-      source:"cursor",
-      paint:{
-        "circle-radius":6,
-        "circle-color":"#fff",
-        "circle-stroke-width":3,
-        "circle-stroke-color":"#EC2629"
-      }
-    });
-
-    if(route){
-      map.getSource("route").setData(route);
-      map.getSource("cursor").setData(turf.point(route.geometry.coordinates[0]));
-
-      map.once("idle", ()=>{
-        const b=turf.bbox(route);
-        const p0 = route.geometry.coordinates[0];
-        const p1 = route.geometry.coordinates[Math.min(3, route.geometry.coordinates.length-1)];
-        const init = norm360(turf.bearing(turf.point(p0), turf.point(p1)) + 180);
-
-        map.fitBounds([[b[0],b[1]],[b[2],b[3]]],{
-          padding:80,
-          pitch:75,
-          bearing:init,
-          duration:0
-        });
-
-        const z = map.getZoom();
-        currentZoom = z;
-        targetZoom  = z;
-
-        camCenter=null;
-        camBearing=null;
-      });
-    }
-
-    requestAnimationFrame(tick);
-  });
-})();
-
 async function addArrow(){
   if(map.hasImage("arrow"))return;
   const c=document.createElement("canvas");
@@ -543,6 +412,114 @@ async function addArrow(){
   map.addImage("arrow",await createImageBitmap(c),{pixelRatio:2});
 }
 
+/* ISSUE 1 ONLY: initial camera bearing on load should face forward along the route */
+function norm360(b){ return ((b % 360) + 360) % 360; }
+
+map.on("load",async()=>{
+
+  map.addSource("mapbox-dem",{type:"raster-dem",url:"mapbox://mapbox.mapbox-terrain-dem-v1"});
+  map.setTerrain({source:"mapbox-dem",exaggeration:1});
+  map.addLayer({id:"sky",type:"sky",
+    paint:{"sky-type":"atmosphere","sky-atmosphere-sun-intensity":12}
+  });
+
+  map.addSource("os-topo",{
+    type:"raster",
+    tiles:[
+      "https://a.tile.opentopomap.org/{z}/{x}/{y}.png",
+      "https://b.tile.opentopomap.org/{z}/{x}/{y}.png",
+      "https://c.tile.opentopomap.org/{z}/{x}/{y}.png"
+    ],
+    tileSize:256,
+    maxzoom:17
+  });
+  map.addLayer({
+    id:"os-topo-layer",
+    type:"raster",
+    source:"os-topo",
+    layout:{ visibility:"none" },
+    paint:{}
+  });
+
+  map.addSource("route",{type:"geojson",data:{type:"FeatureCollection",features:[]}});
+
+  map.addLayer({
+    id:"route-line",
+    type:"line",
+    source:"route",
+    paint:{
+      "line-color":"#EC2629",
+      "line-width":4,
+      "line-opacity":0.95
+    }
+  });
+
+  await addArrow();
+
+  map.addLayer({
+    id:"route-arrows",
+    type:"symbol",
+    source:"route",
+    layout:{
+      "symbol-placement":"line",
+      "symbol-spacing":110,
+      "icon-image":"arrow",
+      "icon-size":0.45,
+      "icon-allow-overlap":true,
+      "icon-ignore-placement":true,
+      "icon-rotation-alignment":"map",
+      "icon-keep-upright":false
+    },
+    paint:{"icon-opacity":0.9}
+  });
+
+  map.addSource("cursor",{type:"geojson",data:turf.point([0,0])});
+  map.addLayer({
+    id:"cursor-pt",
+    type:"circle",
+    source:"cursor",
+    paint:{
+      "circle-radius":6,
+      "circle-color":"#fff",
+      "circle-stroke-width":3,
+      "circle-stroke-color":"#EC2629"
+    }
+  });
+
+  const text=await fetchText(GPX_URL);
+  const line=parseGpx(text);
+  if(line){
+    const len=turf.length(line,{units:"kilometers"});
+    const pts=[];
+    for(let d=0;d<=len;d+=STEP_KM){
+      pts.push(
+        turf.along(line,Math.min(d,len),{units:"kilometers"}).geometry.coordinates
+      );
+    }
+    route={type:"Feature",geometry:{type:"LineString",coordinates:pts}};
+    routeLen=len;
+
+    map.getSource("route").setData(route);
+    map.getSource("cursor").setData(turf.point(pts[0]));
+
+    /* ISSUE 1 FIX: set initial bearing to the route’s forward bearing at the start */
+    const p0 = pts[0];
+    const p1 = pts[Math.min(1, pts.length - 1)];
+    const initBearing = norm360(turf.bearing(turf.point(p0), turf.point(p1)));
+
+    map.once("idle",()=>{
+      const b=turf.bbox(route);
+      map.fitBounds([[b[0],b[1]],[b[2],b[3]]],{
+        padding:80,pitch:75,bearing:initBearing,duration:0
+      });
+      currentZoom = START_ZOOM;
+      targetZoom  = START_ZOOM;
+    });
+  }
+
+  requestAnimationFrame(tick);
+});
+
 function camIcons(){
   return{
     follow:document.getElementById("iconCamCine"),
@@ -554,58 +531,45 @@ document.getElementById("btnToggle").onclick=()=>{
   playing=!playing;
   if(playing){
     userOverride=false;
-    camCenter=null;
-    camBearing=null;
-    const z = map ? map.getZoom() : currentZoom;
-    currentZoom = z;
-    targetZoom  = z;
+    camCenter=null; camBearing=null;
+    currentZoom = START_ZOOM; targetZoom = START_ZOOM;
   }
   document.getElementById("iconPlay").classList.toggle("active",!playing);
   document.getElementById("iconPause").classList.toggle("active",playing);
 };
 
 document.getElementById("btnRestart").onclick=()=>{
-  if(!route || !map) return;
+  if(!route) return;
   progress=0;
   const startCoord=route.geometry.coordinates[0];
   map.getSource("cursor").setData(turf.point(startCoord));
-  camCenter=null;
-  camBearing=null;
-  const z = map.getZoom();
-  currentZoom = z;
-  targetZoom  = z;
+  camCenter=null; camBearing=null;
+  currentZoom = START_ZOOM; targetZoom = START_ZOOM;
 };
 
 document.getElementById("btnReset").onclick=()=>{
-  if(!route || !map) return;
-  userOverride=false;
-  camMode="follow";
-  camCenter=null;
-  camBearing=null;
+  if(!route) return;
+  userOverride=false; camMode="follow";
+  camCenter=null; camBearing=null;
   const icons=camIcons();
   Object.values(icons).forEach(i=>i.classList.remove("active"));
   icons.follow.classList.add("active");
-  const z = map.getZoom();
-  currentZoom = z;
-  targetZoom  = z;
+  currentZoom = START_ZOOM; targetZoom = START_ZOOM;
 };
 
-document.getElementById("btnCam").onclick=()=>{
+const btnCam=document.getElementById("btnCam");
+btnCam.onclick=()=>{
   camMode = (camMode === "follow") ? "topdown" : "follow";
   const icons=camIcons();
   Object.values(icons).forEach(i=>i.classList.remove("active"));
   icons[camMode].classList.add("active");
 
   userOverride=false;
-  camCenter=null;
-  camBearing=null;
-  const z = map ? map.getZoom() : currentZoom;
-  currentZoom = z;
-  targetZoom  = z;
+  camCenter=null; camBearing=null;
+  currentZoom = START_ZOOM; targetZoom = START_ZOOM;
 };
 
 document.getElementById("btnLayers").onclick=()=>{
-  if(!map) return;
   osVisible=!osVisible;
   map.setLayoutProperty("os-topo-layer","visibility",osVisible?"visible":"none");
 };
@@ -617,13 +581,13 @@ document.getElementById("btnSpeed").onclick=e=>{
 };
 document.addEventListener("click",()=>speedWrap.classList.remove("open"));
 
-/* Fullscreen */
 const btnFull=document.getElementById("btnFull");
 
 function isFullscreen(){
   return document.fullscreenElement || document.webkitFullscreenElement ||
          document.mozFullScreenElement || document.msFullscreenElement;
 }
+
 function isIOS(){
   const ua = window.navigator.userAgent || "";
   const platform = window.navigator.platform || "";
@@ -631,6 +595,7 @@ function isIOS(){
   const iPadOS = platform === "MacIntel" && navigator.maxTouchPoints > 1;
   return iOS || iPadOS;
 }
+
 (function(){
   const params = new URLSearchParams(window.location.search);
   if(isIOS() && params.get("fs") === "1"){
@@ -639,6 +604,7 @@ function isIOS(){
     if(bf) bf.style.display = "none";
   }
 })();
+
 btnFull.onclick=()=>{
   if(isIOS()){
     const url = new URL(window.location.href);
@@ -646,6 +612,7 @@ btnFull.onclick=()=>{
     window.open(url.toString(), "_blank");
     return;
   }
+
   if(!isFullscreen()){
     const el=document.documentElement;
     if(el.requestFullscreen) el.requestFullscreen();
@@ -660,49 +627,37 @@ btnFull.onclick=()=>{
   }
 };
 
-/* Zoom buttons */
 document.getElementById("btnZoomIn").onclick=()=>{
   const delta=0.7;
-  if(!map) return;
   if(playing && (camMode==="follow"||camMode==="topdown") && !userOverride){
     targetZoom = Math.min(targetZoom + delta, 19);
   }else{
     const z = map.getZoom()+delta;
     map.easeTo({ zoom:z, duration:600 });
-    currentZoom = z;
-    targetZoom  = z;
+    currentZoom = z; targetZoom  = z;
   }
 };
 document.getElementById("btnZoomOut").onclick=()=>{
   const delta=0.7;
-  if(!map) return;
   if(playing && (camMode==="follow"||camMode==="topdown") && !userOverride){
     targetZoom = Math.max(targetZoom - delta, 4);
   }else{
     const z = map.getZoom()-delta;
     map.easeTo({ zoom:z, duration:600 });
-    currentZoom = z;
-    targetZoom  = z;
+    currentZoom = z; targetZoom  = z;
   }
 };
 
 ["mousedown","touchstart","dragstart","rotatestart","zoomstart","pitchstart"].forEach(ev=>{
-  const handler = e=>{
+  map.on(ev,e=>{
     if(!e.originalEvent) return;
     if(playing && (camMode==="follow"||camMode==="topdown")){
       userOverride=true;
     }
-  };
-  const wait = setInterval(()=>{
-    if(map){
-      clearInterval(wait);
-      map.on(ev, handler);
-    }
-  }, 50);
+  });
 });
 
 function tick(ts){
-  if(!map){ requestAnimationFrame(tick); return; }
   if(!lastTs) lastTs=ts;
   const dt=(ts-lastTs)/1000;
   lastTs=ts;
@@ -719,11 +674,7 @@ function tick(ts){
 
     if((camMode==="follow" || camMode==="topdown") && !userOverride){
       const targetCenter=pos;
-
-      /* issue 2: behind the walker looking forward */
-      const fwd = turf.bearing(turf.point(pos),turf.point(nxt));
-      const targetBearing = norm360(fwd + 180);
-
+      const targetBearing=turf.bearing(turf.point(pos),turf.point(nxt));
       const targetPitch=camMode==="topdown"?0:75;
 
       if(camBearing===null) camBearing=targetBearing;
@@ -752,7 +703,6 @@ function tick(ts){
   requestAnimationFrame(tick);
 }
 
-/* Mobile menu toggle */
 (function(){
   const btnMobileMenu = document.getElementById("btnMobileMenu");
   const uiLeft = document.querySelector(".ui-left");
