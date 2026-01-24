@@ -376,8 +376,8 @@ const map=new mapboxgl.Map({
   attributionControl:false
 });
 
-/* MINIMUM ATTRIBUTION BACK ON (single control, no duplicates) */
-map.addControl(new mapboxgl.AttributionControl({ compact: false }), "bottom-right");
+/* COMPACT ATTRIBUTION (Mapbox logo bottom left + info icon) */
+map.addControl(new mapboxgl.AttributionControl({ compact: true }), "bottom-right");
 
 let route=null,routeLen=0,progress=0,playing=false,camMode="follow";
 let userOverride=false;
