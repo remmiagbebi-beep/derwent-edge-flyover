@@ -56,12 +56,6 @@ html,body{ margin:0; height:100%; background:#000; font-family:Inter,system-ui,-
 .mobile-menu-btn{ position:absolute; bottom:20px; right:20px; z-index:20; display:none; }
 
 /* IMPORTANT: do not hide Mapbox branding or attribution */
-/* Removed:
-.mapboxgl-ctrl-logo,
-.mapboxgl-ctrl-attrib,
-.mapboxgl-ctrl-bottom-left,
-.mapboxgl-ctrl-bottom-right{ display:none !important; }
-*/
 
 body.fake-fullscreen #map{ position:fixed; inset:0; z-index:1; }
 body.fake-fullscreen .ui,
@@ -418,7 +412,6 @@ async function addArrow(){
   map.addImage("arrow",await createImageBitmap(c),{pixelRatio:2});
 }
 
-/* ISSUE 1 ONLY: initial camera bearing on load should face forward along the route */
 function norm360(b){ return ((b % 360) + 360) % 360; }
 
 map.on("load",async()=>{
@@ -508,7 +501,6 @@ map.on("load",async()=>{
     map.getSource("route").setData(route);
     map.getSource("cursor").setData(turf.point(pts[0]));
 
-    /* ISSUE 1 FIX: set initial bearing to the route’s forward bearing at the start */
     const p0 = pts[0];
     const p1 = pts[Math.min(1, pts.length - 1)];
     const initBearing = norm360(turf.bearing(turf.point(p0), turf.point(p1)));
